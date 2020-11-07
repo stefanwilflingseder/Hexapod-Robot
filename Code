@@ -1,0 +1,804 @@
+#https://pysimplegui.readthedocs.io/en/latest/cookbook/#realtime-buttons-good-for-raspberry-pi
+#https://github.com/adafruit/Adafruit_Python_PCA9685
+from __future__ import division
+import RPi.GPIO as GPIO
+import time
+import Adafruit_PCA9685
+import PySimpleGUI as sg
+import time
+
+# Uncomment to enable debug output.
+#import logging
+#logging.basicConfig(level=logging.DEBUG)
+
+# Initialise the PCA9685 using the default address (0x40).
+pwm = Adafruit_PCA9685.PCA9685(address=0x40, busnum=1)
+pwm1 = Adafruit_PCA9685.PCA9685(address=0x41, busnum = 1)
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(10, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+#Laser setup
+laserpin = 7
+
+GPIO.setup(laserpin, GPIO.OUT)
+
+GPIO.setup(11, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(13, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(15, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(16, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(12, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+# Alternatively specify a different address and/or bus:
+#pwm = Adafruit_PCA9685.PCA9685(address=0x41, busnum=2)
+
+# Helper function to make setting a servo pulse width simpler.
+def set_servo_pulse(channel, pulse):
+    pulse_length = 1000000    # 1,000,000 us per second
+    pulse_length //= 60       # 60 Hz
+    print('{0}us per period'.format(pulse_length))
+    pulse_length //= 4096     # 12 bits of resolution
+    print('{0}us per bit'.format(pulse_length))
+    pulse *= 1000
+    pulse //= pulse_length
+    pwm.set_pwm(channel, 0, pulse)
+    pwm1.set_pwm(channel, 0, pulse)
+    
+# Set frequency to 60hz, good for servos.
+pwm.set_pwm_freq(60)
+pwm1.set_pwm_freq(60)
+
+#Variables:
+servo_start = 400
+schritte = 0
+x = 0.3
+wait = False
+keys_entered = ''
+cam_start = 400
+camera_movement=2
+laser_start = False
+#timepoint = time.time()
+
+#movement switches:
+go_crab = False
+startup = True
+standby = False
+go = False
+action = True
+
+#Funktions:
+def start():
+    #Startup Servos:
+    pwm.set_pwm(0, 0, servo_start-20)    # left front shoulder
+    pwm.set_pwm(1, 0, servo_start)    # left front upper leg
+    pwm.set_pwm(2, 0, servo_start)    # left front lower leg
+    pwm.set_pwm(3, 0, servo_start)   # left mid shoulder
+    pwm.set_pwm(4, 0, servo_start)   # left mid upper leg
+    pwm.set_pwm(5, 0, servo_start)   # left mid lower leg
+    pwm.set_pwm(12, 0, servo_start)    # left back shoulder
+    pwm.set_pwm(13, 0, servo_start)   # left back upper leg
+    pwm.set_pwm(14, 0, servo_start)   # left back lower leg
+    pwm.set_pwm(11, 0, 400)   # camera
+
+    pwm1.set_pwm(15, 0, servo_start+20)    # right front shoulder
+    pwm1.set_pwm(14, 0, servo_start)    # right front upper leg
+    pwm1.set_pwm(13, 0, servo_start)    # right front lower leg
+    pwm1.set_pwm(12, 0, servo_start)   # right mid shoulder
+    pwm1.set_pwm(11, 0, servo_start)   # right mid upper leg
+    pwm1.set_pwm(10, 0, servo_start)   # right mid lower leg
+    pwm1.set_pwm(3, 0, servo_start)    # right back shoulder
+    pwm1.set_pwm(2, 0, servo_start)   # right back upper leg
+    pwm1.set_pwm(1, 0, servo_start)   # right back lower leg
+    
+def start_to_standby(a):
+    if a == True:
+        pwm.set_pwm(2, 0, 500)    # left front lower leg    
+        pwm.set_pwm(5, 0, 500)   # left mid lower leg        
+        pwm.set_pwm(14, 0, 500)  # left back lower leg        
+        pwm1.set_pwm(13, 0, 300)    # right front lower leg       
+        pwm1.set_pwm(1, 0, 300)   # right back lower leg
+        pwm1.set_pwm(10, 0, 300)   # right mid lower leg
+        time.sleep(x)
+        pwm.set_pwm(1, 0, 200)    # left front upper leg
+        pwm.set_pwm(4, 0, 200)   # left mid upper leg
+        pwm.set_pwm(13, 0, 200)   # left back upper leg
+        pwm1.set_pwm(14, 0, 600)    # right front upper leg
+        pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+        pwm1.set_pwm(2, 0, 600)   # right back upper leg
+        time.sleep(x)
+        pwm.set_pwm(2, 0, 400)    # left front lower leg    
+        pwm.set_pwm(5, 0, 400)   # left mid lower leg        
+        pwm.set_pwm(14, 0, 400)  # left back lower leg        
+        pwm1.set_pwm(13, 0, 400)    # right front lower leg       
+        pwm1.set_pwm(1, 0, 400)   # right back lower leg
+        pwm1.set_pwm(10, 0, 400)   # right mid lower leg
+        time.sleep(x)
+    if a == False:
+        pwm.set_pwm(0, 0, 500)    # left front shoulder
+        pwm.set_pwm(12, 0, 300)    # left back shoulder
+        pwm1.set_pwm(15, 0, 300)    # right front shoulder
+        pwm1.set_pwm(3, 0, 500)    # right back shoulder
+        time.sleep(x)
+        pwm.set_pwm(2, 0, 500)    # left front lower leg    
+        pwm.set_pwm(5, 0, 500)   # left mid lower leg        
+        pwm.set_pwm(14, 0, 500)  # left back lower leg
+        pwm1.set_pwm(13, 0, 300)    # right front lower leg       
+        pwm1.set_pwm(1, 0, 300)   # right back lower leg
+        pwm1.set_pwm(10, 0, 300)   # right mid lower leg
+        time.sleep(x)
+        pwm.set_pwm(1, 0, 200)    # left front upper leg
+        pwm.set_pwm(4, 0, 200)   # left mid upper leg
+        pwm.set_pwm(13, 0, 200)   # left back upper leg
+        pwm1.set_pwm(14, 0, 600)    # right front upper leg
+        pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+        pwm1.set_pwm(2, 0, 600)   # right back upper leg
+        time.sleep(x)
+        pwm.set_pwm(2, 0, 400)    # left front lower leg    
+        pwm.set_pwm(5, 0, 400)   # left mid lower leg        
+        pwm.set_pwm(14, 0, 400)  # left back lower leg        
+        pwm1.set_pwm(13, 0, 400)    # right front lower leg       
+        pwm1.set_pwm(1, 0, 400)   # right back lower leg
+        pwm1.set_pwm(10, 0, 400)   # right mid lower leg
+
+def go_to_go_crab():
+    pwm1.set_pwm(12, 0, 400)    # right mid shoulder
+    pwm.set_pwm(0, 0, 500)    # left front shoulder
+    pwm.set_pwm(12, 0, 300)    # left back shoulder
+    time.sleep(x)
+    pwm1.set_pwm(10, 0, 400)   # right mid lower leg
+    pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+    pwm.set_pwm(13, 0, 200)   # left back upper leg
+    pwm.set_pwm(1, 0, 200)    # left front upper leg
+    pwm.set_pwm(2, 0, 400)    # left front lower leg
+    pwm.set_pwm(14, 0, 400)  # left back lower leg
+    time.sleep(x)
+    pwm1.set_pwm(13, 0, 300)    # right front lower leg       
+    pwm1.set_pwm(1, 0, 300)   # right back lower leg
+    pwm1.set_pwm(14, 0, 500)    # right front upper leg
+    pwm1.set_pwm(2, 0, 500)   # right back upper leg
+    time.sleep(x)
+    pwm1.set_pwm(15, 0, 300)    # right front shoulder
+    pwm1.set_pwm(3, 0, 500)    # right back shoulder
+    time.sleep(x)
+    pwm1.set_pwm(13, 0, 400)    # right front lower leg       
+    pwm1.set_pwm(1, 0, 400)   # right back lower leg
+    pwm1.set_pwm(14, 0, 600)    # right front upper leg
+    pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    
+    
+def go_crab_to_go():
+    pwm.set_pwm(2, 0, 500)    # left front lower leg           
+    pwm.set_pwm(14, 0, 500)  # left back lower leg
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    time.sleep(x)
+    pwm.set_pwm(0, 0, 400)    # left front shoulder
+    pwm.set_pwm(12, 0, 400)    # left back shoulder
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 200)    # left front upper leg
+    pwm.set_pwm(13, 0, 200)   # left back upper leg
+    pwm.set_pwm(2, 0, 400)    # left front lower leg     
+    pwm.set_pwm(14, 0, 400)  # left back lower leg  
+    time.sleep(x)
+    pwm1.set_pwm(13, 0, 300)    # right front lower leg       
+    pwm1.set_pwm(1, 0, 300)   # right back lower leg
+    pwm1.set_pwm(14, 0, 400)    # right front upper leg
+    pwm1.set_pwm(2, 0, 400)   # right back upper leg
+    time.sleep(x)
+    pwm1.set_pwm(15, 0, 400)    # right front shoulder
+    pwm1.set_pwm(3, 0, 400)    # right back shoulder
+    time.sleep(x)
+    pwm1.set_pwm(13, 0, 400)    # right front lower leg       
+    pwm1.set_pwm(1, 0, 400)   # right back lower leg
+    pwm1.set_pwm(14, 0, 600)    # right front upper leg
+    pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    
+def go_forward():
+    global standby
+    global schritte
+    print(schritte)
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(2, 0, 500)    # left front lower leg 
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    pwm.set_pwm(14, 0, 500)  # left back lower leg 
+    pwm1.set_pwm(11, 0, 400)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 300)  # right mid lower leg
+    time.sleep(x)
+    pwm.set_pwm(12, 0, 400)    # left back shoulder
+    pwm.set_pwm(0, 0, 400)    # left front shoulder
+    pwm1.set_pwm(12, 0, 400)    # right mid shoulder
+    
+    pwm.set_pwm(3, 0, 450)   # left mid shoulder
+    pwm1.set_pwm(3, 0, 350)   # right front shoulder
+    pwm1.set_pwm(15, 0, 330)   # right back shoulder
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 200)    # left front upper leg
+    pwm.set_pwm(2, 0, 400)    # left front lower leg 
+    pwm.set_pwm(13, 0, 200)   # left back upper leg
+    pwm.set_pwm(14, 0, 400)  # left back lower leg 
+    pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 400)  # right mid lower leg 
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 400)   # left mid upper leg
+    pwm.set_pwm(5, 0, 400)   # left mid lower leg 
+    pwm1.set_pwm(14, 0, 400)   # right front upper leg
+    pwm1.set_pwm(13, 0, 400)   # right front lower leg 
+    pwm1.set_pwm(2, 0, 400)   # right back upper leg
+    pwm1.set_pwm(1, 0, 400)   # right back lower leg 
+    time.sleep(x)
+    pwm.set_pwm(3, 0, 400)   # left mid shoulder
+    pwm1.set_pwm(3, 0, 400)   # right front shoulder
+    pwm1.set_pwm(15, 0, 400)   # right back shoulder
+
+    pwm.set_pwm(12, 0, 450)    # left back shoulder   
+    pwm.set_pwm(0, 0, 450)    # left front shoulder
+    pwm1.set_pwm(12, 0, 350)    # right mid shoulder
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 200)   # left mid upper leg
+    pwm.set_pwm(5, 0, 400)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 600)   # right front upper leg
+    pwm1.set_pwm(13, 0, 400)   # right front lower leg
+    pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    pwm1.set_pwm(1, 0, 400)   # right back lower leg
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(2, 0, 500)    # left front lower leg 
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    pwm.set_pwm(14, 0, 500)  # left back lower leg 
+    pwm1.set_pwm(11, 0, 400)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 300)  # right mid lower leg
+    schritte = schritte +1
+    #time.sleep(x)
+    
+def go_back():
+    global schritte
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(2, 0, 500)    # left front lower leg
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    pwm.set_pwm(14, 0, 500)  # left back lower leg
+    pwm1.set_pwm(11, 0, 400)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 300)  # right mid lower leg    
+    time.sleep(x)
+    pwm.set_pwm(3, 0, 350)   # left mid shoulder
+    pwm1.set_pwm(3, 0, 450)   # right front shoulder
+    pwm1.set_pwm(15, 0, 450)   # right back shoulder
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 200)    # left front upper leg
+    pwm.set_pwm(2, 0, 400)    # left front lower leg
+    pwm.set_pwm(13, 0, 200)   # left back upper leg
+    pwm.set_pwm(14, 0, 400)  # left back lower leg
+    pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 400)  # right mid lower leg
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 400)   # left mid upper leg
+    pwm.set_pwm(5, 0, 500)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 400)   # right front upper leg
+    pwm1.set_pwm(13, 0, 300)   # right front lower leg
+    pwm1.set_pwm(2, 0, 400)   # right back upper leg
+    pwm1.set_pwm(1, 0, 300)   # right back lower leg
+    time.sleep(x)
+    pwm.set_pwm(3, 0, 400)   # left mid shoulder
+    pwm1.set_pwm(3, 0, 400)   # right front shoulder
+    pwm1.set_pwm(15, 0, 400)   # right back shoulder
+    
+    pwm.set_pwm(12, 0, 350)    # left back shoulder   
+    pwm.set_pwm(0, 0, 350)    # left front shoulder
+    pwm1.set_pwm(12, 0, 450)    # right mid shoulder
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 200)   # left mid upper leg
+    pwm.set_pwm(5, 0, 400)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 600)   # right front upper leg
+    pwm1.set_pwm(13, 0, 400)   # right front lower leg
+    pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    pwm1.set_pwm(1, 0, 400)   # right back lower leg
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(2, 0, 500)    # left front lower leg
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    pwm.set_pwm(14, 0, 500)  # left back lower leg
+    pwm1.set_pwm(11, 0, 400)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 300)  # right mid lower leg
+    time.sleep(x)
+    pwm.set_pwm(12, 0, 400)    # left back shoulder
+    pwm.set_pwm(0, 0, 400)    # left front shoulder
+    pwm1.set_pwm(12, 0, 400)    # right mid shoulder
+    #pwm.set_pwm(1, 0, 400)    # left front upper leg
+    schritte = schritte +1
+
+def go_left():
+    global schritte
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(2, 0, 500)    # left front lower leg
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    pwm.set_pwm(14, 0, 500)  # left back lower leg
+    pwm1.set_pwm(11, 0, 400)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 300)  # right mid lower leg 
+    time.sleep(x)
+    pwm.set_pwm(3, 0, 350)   # left mid shoulder
+    pwm1.set_pwm(3, 0, 350)   # right front shoulder
+    pwm1.set_pwm(15, 0, 330)   # right back shoulder
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 200)    # left front upper leg
+    pwm.set_pwm(2, 0, 400)    # left front lower leg
+    pwm.set_pwm(13, 0, 200)   # left back upper leg
+    pwm.set_pwm(14, 0, 400)  # left back lower leg
+    pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 400)  # right mid lower leg 
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 400)   # left mid upper leg
+    pwm.set_pwm(5, 0, 500)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 400)   # right front upper leg
+    pwm1.set_pwm(13, 0, 400)   # right front lower leg 
+    pwm1.set_pwm(2, 0, 400)   # right back upper leg
+    pwm1.set_pwm(1, 0, 400)   # right back lower leg 
+    time.sleep(x)
+    pwm.set_pwm(3, 0, 400)   # left mid shoulder
+    pwm1.set_pwm(3, 0, 400)   # right front shoulder
+    pwm1.set_pwm(15, 0, 400)   # right back shoulder
+    #schultern richten kann gemeinsam passieren
+    pwm.set_pwm(12, 0, 350)    # left back shoulder   
+    pwm.set_pwm(0, 0, 350)    # left front shoulder
+    pwm1.set_pwm(12, 0, 350)    # right mid shoulder
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 200)   # left mid upper leg
+    pwm.set_pwm(5, 0, 400)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 600)   # right front upper leg
+    pwm1.set_pwm(13, 0, 400)   # right front lower leg
+    pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    pwm1.set_pwm(1, 0, 400)   # right back lower leg
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(2, 0, 500)    # left front lower leg
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    pwm.set_pwm(14, 0, 500)  # left back lower leg
+    pwm1.set_pwm(11, 0, 400)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 300)  # right mid lower leg 
+    time.sleep(x)
+    pwm.set_pwm(12, 0, 400)    # left back shoulder
+    pwm.set_pwm(0, 0, 400)    # left front shoulder
+    pwm1.set_pwm(12, 0, 400)    # right mid shoulder
+    schritte = schritte +1
+    
+def go_right():
+    global schritte
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(2, 0, 500)    # left front lower leg 
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    pwm.set_pwm(14, 0, 500)  # left back lower leg 
+    pwm1.set_pwm(11, 0, 400)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 300)  # right mid lower leg    
+    time.sleep(x)
+    pwm.set_pwm(3, 0, 450)   # left mid shoulder
+    pwm1.set_pwm(3, 0, 450)   # right front shoulder
+    pwm1.set_pwm(15, 0, 450)   # right back shoulder
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 200)    # left front upper leg
+    pwm.set_pwm(2, 0, 400)    # left front lower leg 
+    pwm.set_pwm(13, 0, 200)   # left back upper leg
+    pwm.set_pwm(14, 0, 400)  # left back lower leg 
+    pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 400)  # right mid lower leg
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 400)   # left mid upper leg
+    pwm.set_pwm(5, 0, 400)   # left mid lower leg 
+    pwm1.set_pwm(14, 0, 400)   # right front upper leg
+    pwm1.set_pwm(13, 0, 300)   # right front lower leg
+    pwm1.set_pwm(2, 0, 400)   # right back upper leg
+    pwm1.set_pwm(1, 0, 300)   # right back lower leg
+    time.sleep(x)
+    pwm.set_pwm(3, 0, 400)   # left mid shoulder
+    pwm1.set_pwm(3, 0, 400)   # right front shoulder
+    pwm1.set_pwm(15, 0, 400)   # right back shoulder
+    
+    pwm.set_pwm(12, 0, 450)    # left back shoulder   
+    pwm.set_pwm(0, 0, 450)    # left front shoulder
+    pwm1.set_pwm(12, 0, 450)    # right mid shoulder
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 200)   # left mid upper leg
+    pwm.set_pwm(5, 0, 400)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 600)   # right front upper leg
+    pwm1.set_pwm(13, 0, 400)   # right front lower leg
+    pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    pwm1.set_pwm(1, 0, 400)   # right back lower leg
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(2, 0, 500)    # left front lower leg 
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    pwm.set_pwm(14, 0, 500)  # left back lower leg 
+    pwm1.set_pwm(11, 0, 400)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 300)  # right mid lower leg
+    time.sleep(x)
+    pwm.set_pwm(12, 0, 400)    # left back shoulder
+    pwm.set_pwm(0, 0, 400)    # left front shoulder
+    pwm1.set_pwm(12, 0, 400)    # right mid shoulder
+    #pwm.set_pwm(1, 0, 400)    # left front upper leg
+    schritte = schritte +1
+    #time.sleep(x)
+    
+def go_crab_left():
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(2, 0, 500)    # left front lower leg
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    pwm.set_pwm(14, 0, 500)  # left back lower leg
+    pwm1.set_pwm(11, 0, 400)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 300)  # right mid lower leg    
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 200)   # left mid upper leg
+    pwm.set_pwm(5, 0, 450)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 600)   # right front upper leg
+    pwm1.set_pwm(13, 0, 450)   # right front lower leg
+    pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    pwm1.set_pwm(1, 0, 450)   # right back lower leg
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 200)    # left front upper leg
+    pwm.set_pwm(2, 0, 400)    # left front lower leg
+    pwm.set_pwm(13, 0, 200)   # left back upper leg
+    pwm.set_pwm(14, 0, 400)  # left back lower leg
+    pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 400)  # right mid lower leg
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 400)   # left mid upper leg
+    pwm.set_pwm(5, 0, 500)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 400)   # right front upper leg
+    pwm1.set_pwm(13, 0, 300)   # right front lower leg
+    pwm1.set_pwm(2, 0, 400)   # right back upper leg
+    pwm1.set_pwm(1, 0, 300)   # right back lower leg
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 200)    # left front upper leg
+    pwm.set_pwm(2, 0, 450)    # left front lower leg
+    pwm.set_pwm(13, 0, 200)   # left back upper leg
+    pwm.set_pwm(14, 0, 450)  # left back lower leg
+    pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 450)  # right mid lower leg
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 200)   # left mid upper leg
+    pwm.set_pwm(5, 0, 400)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 600)   # right front upper leg
+    pwm1.set_pwm(13, 0, 400)   # right front lower leg
+    pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    pwm1.set_pwm(1, 0, 400)   # right back lower leg
+
+def go_crab_right():
+    pwm.set_pwm(1, 0, 400)    # left front upper leg
+    pwm.set_pwm(2, 0, 500)    # left front lower leg
+    pwm.set_pwm(13, 0, 400)   # left back upper leg
+    pwm.set_pwm(14, 0, 500)  # left back lower leg
+    pwm1.set_pwm(11, 0, 400)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 300)  # right mid lower leg    
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 200)   # left mid upper leg
+    pwm.set_pwm(5, 0, 350)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 600)   # right front upper leg
+    pwm1.set_pwm(13, 0, 350)   # right front lower leg
+    pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    pwm1.set_pwm(1, 0, 350)   # right back lower leg
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 200)    # left front upper leg
+    pwm.set_pwm(2, 0, 400)    # left front lower leg
+    pwm.set_pwm(13, 0, 200)   # left back upper leg
+    pwm.set_pwm(14, 0, 400)  # left back lower leg
+    pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 400)  # right mid lower leg
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 400)   # left mid upper leg
+    pwm.set_pwm(5, 0, 500)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 400)   # right front upper leg
+    pwm1.set_pwm(13, 0, 300)   # right front lower leg
+    pwm1.set_pwm(2, 0, 400)   # right back upper leg
+    pwm1.set_pwm(1, 0, 300)   # right back lower leg
+    time.sleep(x)
+    pwm.set_pwm(1, 0, 200)    # left front upper leg
+    pwm.set_pwm(2, 0, 350)    # left front lower leg
+    pwm.set_pwm(13, 0, 200)   # left back upper leg
+    pwm.set_pwm(14, 0, 350)  # left back lower leg
+    pwm1.set_pwm(11, 0, 600)   # right mid upper leg
+    pwm1.set_pwm(10, 0, 350)  # right mid lower leg
+    time.sleep(x)
+    pwm.set_pwm(4, 0, 200)   # left mid upper leg
+    pwm.set_pwm(5, 0, 400)   # left mid lower leg
+    pwm1.set_pwm(14, 0, 600)   # right front upper leg
+    pwm1.set_pwm(13, 0, 400)   # right front lower leg
+    pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    pwm1.set_pwm(1, 0, 400)   # right back lower leg
+    
+def cam_up():
+    global cam_start
+    cam_start = cam_start -camera_movement
+    #time.sleep(2)
+    if cam_start <= 300:
+        print('max. Position')
+        cam_start = cam_start +camera_movement
+    if cam_start >= 300:
+        pwm.set_pwm(11, 0, cam_start)
+        print(cam_start)
+        
+def cam_down():
+    global cam_start
+    cam_start = cam_start +camera_movement
+    if cam_start >= 470:
+        print('min. Position')
+        cam_start = cam_start -camera_movement
+    if cam_start <= 470:
+        pwm.set_pwm(11, 0, cam_start)
+        print(cam_start)
+
+#Gui
+sg.ChangeLookAndFeel('LightGreen') 
+layout = [
+    #[sg.T(' '  * 27), sg.Input('', size=(10, 1), do_not_clear=True, justification='right', key='input')],
+    [sg.T(' ')],
+    [sg.RealtimeButton('Crab Left', size=(10, 2)), sg.RealtimeButton('Forward', size=(10, 2)), sg.RealtimeButton('Crab Right', size=(10, 2))],      
+    [sg.RealtimeButton('Left', size=(10, 2)), sg.T(' '  * 23), sg.RealtimeButton('Right', size=(10, 2))],      
+    [sg.T(' '  * 24), sg.RealtimeButton('Back', size=(10, 2))],
+    [sg.T(' ')],
+    [sg.RealtimeButton('Laser on', size=(5, 2)), sg.T(' '  * 6), sg.RealtimeButton('Camera UP', size=(10, 2))],
+    [sg.RealtimeButton('Laser off', size=(5, 2)), sg.T(' '  * 6), sg.RealtimeButton('Camera DOWN', size=(10, 2))],
+    [sg.T(' ')],
+    [sg.Quit(button_color=('black', 'orange'))],
+    [sg.T(' ')],
+    #[sg.Output(size=(80,10))],
+    #[sg.Slider(range=(1, 10), key = 'camera_movement', orientation='v', size=(10, 5), default_value=camera_movement, disable_number_display=True), sg.Checkbox('Laser', default = False),],
+    ]      
+window = sg.Window('Spider Remote Control', layout, auto_size_text=True, auto_size_buttons = False, return_keyboard_events = True)    
+
+#      
+# Some place later in your code...      
+# You need to perform a Read or Refresh on your window every now and then or    
+# else it will appear your program has hung      
+#      
+# your program's main loop
+
+start()
+while True:
+    # This is the code that reads and updates your window      
+    event, values = window.Read()
+    #uses the event to give the variable keys_entered a letter and than the action gets activated
+    if GPIO.input(11) == GPIO.HIGH:
+        print("Button 1")
+
+    if event == 'Forward':
+        print (event)
+        keys_entered = 'w'
+            
+    if event == 'Back' or event=='s':
+        print (event)
+        keys_entered = 's'
+
+    if event == 'Left':
+        print (event)
+        keys_entered = 'a'
+            
+    if event == 'Right':
+        print (event)
+        keys_entered = 'd'
+            
+    if event == 'Crab Left':
+        print (event)
+        keys_entered = 'q'
+            
+    if event == 'Crab Right':
+        print (event)
+        keys_entered = 'e'
+            
+    if event == 'Camera UP':
+        print (event)
+        keys_entered = 'r'
+            
+    if event == 'Camera DOWN':
+        print (event)
+        keys_entered = 'f'
+            
+    if event == 'Laser on':
+        print (event)
+        keys_entered = 'o'
+        #keys_entered = ''
+    
+    if event == 'Laser off':
+        print (event)
+        keys_entered = 'l'
+        #keys_entered = ''
+            
+    if keys_entered == 's':
+        wait = True
+        #print ('lsl')
+        while action == True:
+            if go_crab == True:
+                print ('crab')
+                go_crab_to_go()
+                go = True
+                go_crab = False
+            if go == True:
+                go_back()
+                go = True
+                action = False
+            if standby == True:
+                print ('standby')
+                go = True
+                standby = False
+            if startup == True:
+                print ('start')
+                start_to_standby(True)
+                standby = True
+                startup = False
+        #print ('lsl')
+        action = True
+        #keys_entered = ''
+        wait = False
+        
+        
+    if keys_entered == 'w':
+        wait = True
+        #print ('lwl')
+        while action == True:
+            if go_crab == True:
+                print ('crab')
+                go_crab_to_go()
+                go = True
+                go_crab = False
+            if go == True:
+                go_forward()
+                go = True
+                action = False
+            if standby == True:
+                print ('standby')
+                go = True
+                standby = False
+            if startup == True:
+                print ('start')
+                start_to_standby(True)
+                standby = True
+                startup = False
+        #print ('lwl')
+        action = True
+        wait = False
+        #keys_entered == 'b'    
+        
+    if keys_entered == 'a':
+        wait = True
+        #print ('lal')
+        while action == True:
+            if go_crab == True:
+                print ('crab')
+                go_crab_to_go()
+                go = True
+                go_crab = False
+            if go == True:
+                go_left()
+                go = True
+                action = False
+            if standby == True:
+                print ('standby')
+                go = True
+                standby = False
+            if startup == True:
+                print ('start')
+                start_to_standby(True)
+                standby = True
+                startup = False
+        #print ('lal')
+        action = True
+        wait = False
+        #keys_entered == 'b'
+        
+    if keys_entered == 'd':
+        wait = True
+        #print ('ldl')
+        while action == True:
+            if go_crab == True:
+                print ('crab')
+                go_crab_to_go()
+                go = True
+                go_crab = False
+            if go == True:
+                go_right()
+                go = True
+                action = False
+            if standby == True:
+                print ('standby')
+                go = True
+                standby = False
+            if startup == True:
+                print ('start')
+                start_to_standby(True)
+                standby = True
+                startup = False
+        #print ('ldl')
+        action = True
+        wait = False
+        #keys_entered == 'b'
+        
+    if keys_entered == 'q':
+        wait = True
+        #print ('lql')
+        while action == True:
+            if go_crab == True:
+                print ('crab')
+                go_crab_left()
+                go = False
+                go_crab = True
+                action = False
+            if go == True:
+                go_to_go_crab()
+                go = False
+                go_crab = True
+            if standby == True:
+                print ('standby')
+                go_crab = True
+                standby = False
+            if startup == True:
+                print ('start')
+                start_to_standby(False)
+                standby = True
+                startup = False
+        action = True
+        #print ('lql')
+        wait = False
+        #keys_entered == 'b'
+        
+    if keys_entered == 'e':
+        wait = True
+        #print ('lel')
+        while action == True:
+            if go_crab == True:
+                print ('crab')
+                go_crab_right()
+                go = False
+                go_crab = True
+                action = False
+            if go == True:
+                go_to_go_crab()
+                go = False
+                go_crab = True
+            if standby == True:
+                print ('standby')
+                go_crab = True
+                standby = False
+            if startup == True:
+                print ('start')
+                start_to_standby(False)
+                standby = True
+                startup = False
+        action = True
+        #print ('lel')
+        wait = False
+        #keys_entered == 'b'    
+        
+    if keys_entered == 'r':
+        wait = True
+        cam_up()
+        wait = False
+        #keys_entered == 'b'
+        
+    if keys_entered == 'f':
+        wait = True
+        cam_down()
+        wait = False
+        #keys_entered == 'b'
+        
+    if keys_entered == 'o':
+        wait = True
+        GPIO.output(laserpin, GPIO.LOW)
+        print('Laser on')
+        wait = False
+        #keys_entered == 'b'
+        
+    if keys_entered == 'l' or laser_start == False:
+        wait = True
+        GPIO.output(laserpin, GPIO.HIGH)
+        print('Laser off')
+        laser_start = True
+        wait = False
+        #keys_entered == 'b'
+    #deletes the letter of the variable after the action is over
+    if wait == False:
+        keys_entered = ''
+        
+    if event == 'Quit'  or values is None:
+        start()
+        time.sleep(x)
+        print('GPIO cleanup...')
+        GPIO.cleanup()
+        break
+    #window.Element('input').Update(keys_entered)
+    #window.Element('camera_movement').Update(values['camera_movement'])
+window.Close()
