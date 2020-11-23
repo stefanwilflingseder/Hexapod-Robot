@@ -192,6 +192,7 @@ def go_crab_to_go():
     pwm1.set_pwm(1, 0, 400)   # right back lower leg
     pwm1.set_pwm(14, 0, 600)    # right front upper leg
     pwm1.set_pwm(2, 0, 600)   # right back upper leg
+    time.sleep(x)
     
 def go_forward():
     global standby
